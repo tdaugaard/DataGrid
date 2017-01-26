@@ -35,6 +35,7 @@
 declare(strict_types=1);
 
 require_once "Filter.php";
+require_once "Tools.php";
 require_once "Column/Abstract.php";
 require_once "Column/Value.php";
 require_once "Column/String.php";
@@ -157,11 +158,6 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
     protected $allow_truncate_string_columns = true;
 
     /**
-     * Regex specifying the pattern that will remove ANSI escape sequences from a string
-     */
-    protected $ansi_sequence_pattern = "/(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]/";
-
-    /**
      * Grid flags (Flag* consts)
      */
     protected $flags = 0;
@@ -259,24 +255,13 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
         foreach ($columns as $id => $col) {
             $is_last        = $id == $last_field_id;
             $col_width      = max($this->column_widths[$id], $this->data_widths[$id]);
-            $col_name       = (string)$col;
+            $col_name       = DataGrid_Tools::strPad((string)$col, $col_width, $col->getValueAligment());
             $straight_line  = str_repeat(LINE_HORIZONTAL, $col_width + 2);
 
             $header         .= $straight_line . ($is_last ? "" : LINE_T_DOWN);
             $footer         .= $straight_line . ($is_last ? "" : LINE_T_UP );
             $column_divider .= $straight_line . ($is_last ? "" : LINE_CROSS);
-
-            $padding = str_repeat(" ", $col_width - $this->_strLen($col));
-            switch ($col->getValueAligment()) {
-                case STR_PAD_LEFT:
-                    $col_name = $padding . $col_name;
-                    break;
-                case STR_PAD_RIGHT:
-                    $col_name = $col_name . $padding;
-                    break;
-            }
-
-            $column_list .= " " . $col_name . " " . ($is_last ? "" : LINE_VERTICAL);
+            $column_list    .= " " . $col_name . " " . ($is_last ? "" : LINE_VERTICAL);
         }
 
         $header         .= (empty($this->table_title) ? LINE_TOP_RIGHT : LINE_RIGHT_T) . PHP_EOL;
@@ -288,9 +273,13 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
 
         // Include the title if there is one
         if ($this->table_title) {
-            $table_width = $this->_strLen($header) - 3;
-            $table .= LINE_TOP_LEFT . str_repeat(LINE_HORIZONTAL, $table_width) . LINE_TOP_RIGHT . PHP_EOL;
-            $table .= LINE_VERTICAL . " " . $this->table_title . str_repeat(" ", $table_width - $this->_strLen($this->table_title) - 2) . " " . LINE_VERTICAL . PHP_EOL;
+            $header_width = DataGrid_Tools::strLen($header) - 3;
+            $title_width  = DataGrid_Tools::strLen($this->table_title);
+            $table_width  = max($header_width, $title_width);
+
+            $table  .= $header;
+            $header  = LINE_TOP_LEFT . str_repeat(LINE_HORIZONTAL, $table_width + 2) . LINE_TOP_RIGHT . PHP_EOL;
+            $header .= LINE_VERTICAL . " " . $this->table_title . str_repeat(" ", $table_width - $title_width) . " " . LINE_VERTICAL . PHP_EOL;
         }
 
         if (!($this->flags & static::FLAG_HIDE_COLUMN_HEADERS)) {
@@ -309,23 +298,15 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
                     $data = (string)$data;
                 }
 
-                $len = $this->_strLen($data);
+                $len = DataGrid_Tools::strLen($data);
 
                 // Truncate data?
                 if ($len > $col_width && $this->allow_truncate_string_columns) {
-                    $data = $this->_substr($data, 0, $col_width - 1) . LINE_HELLIP;
+                    $data = DataGrid_Tools::subStr($data, 0, $col_width - 1) . LINE_HELLIP;
 
                 // Pad data that is shorter than the column header
                 } elseif ($len < $col_width) {
-                    $padding = str_repeat(" ", $col_width - $len);
-                    switch ($col->getValueAligment()) {
-                        case STR_PAD_LEFT:
-                            $data = $padding . $data;
-                            break;
-                        case STR_PAD_RIGHT:
-                            $data = $data . $padding;
-                            break;
-                    }
+                    $data = DataGrid_Tools::strPad($data, $col_width - $len, $col->getValueAligment());
                 }
 
                 $table .= " " . $data . " " . LINE_VERTICAL;
@@ -804,7 +785,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
         // Sort them by length as want to shorten string columns by the longest first.
         arsort($stringcolumn_widths);
 
-        $title_width = $this->_strLen($this->table_title) + 4;
+        $title_width = DataGrid_Tools::strLen($this->table_title) + 4;
 
         // Figure out how wide the table needs to be
         if ($table_width > $this->terminal_width) {
@@ -843,7 +824,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
         $visiblecolumns = $this->getVisibleColumns();
 
         // Calculate the final size of the table as displayed
-        $vert_line_len = $this->_strLen(LINE_VERTICAL);
+        $vert_line_len = DataGrid_Tools::strLen(LINE_VERTICAL);
 
         // 1x LINE_VERTICAL on each row
         $table_width   = $vert_line_len;
@@ -869,45 +850,6 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
                 return $v instanceof DataGrid_Column_String;
             }
         );
-    }
-
-    /**
-     * Get the length of a string, with ANSI escape sequences removed.
-     *
-     * @param mixed $str
-     */
-    protected function _strLen($str)
-    {
-        if (!is_string($str)) {
-            $str = (string)$str;
-        }
-
-        return mb_strlen($this->_removeANSISequences($str));
-    }
-
-    /**
-     * Returns a substring
-     *
-     * @param mixed $str
-     */
-    public function _substr(string $str, int $start, int $length)
-    {
-        if (preg_match($this->ansi_sequence_pattern, $str)) {
-            $str = $this->_removeANSISequences($str);
-        }
-
-        return mb_substr($str, $start, $length);
-    }
-
-    /**
-     * Removes all ANSI sequences from given string.
-     *
-     * @param  string $str
-     * @return string
-     */
-    protected function _removeANSISequences(string $str): string
-    {
-        return preg_replace("/(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]/", "", $str);
     }
 
     /**
