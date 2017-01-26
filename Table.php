@@ -329,7 +329,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
             $table .= PHP_EOL;
         }
 
-        print $header . $table . $footer
+        print $header . $table . $footer;
 
         return $this;
     }
