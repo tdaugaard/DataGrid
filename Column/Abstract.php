@@ -45,6 +45,10 @@ abstract class DataGrid_Column
             return STR_PAD_LEFT;
         }
 
+        if ($this->hasFlag(DataGrid_Table::COLUMN_FLAG_ALIGN_EVEN)) {
+            return STR_PAD_BOTH;
+        }
+
         return $this->isNumeric() ? STR_PAD_LEFT : STR_PAD_RIGHT;
     }
 

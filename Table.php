@@ -73,30 +73,35 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
     /**
      * Column type flags
      */
-    const COLUMN_TYPE_AUTO     = 0x01;
-    const COLUMN_TYPE_STRING   = 0x02;
-    const COLUMN_TYPE_INTEGER  = 0x04;
-    const COLUMN_TYPE_FLOAT    = 0x08;
+    const COLUMN_TYPE_AUTO     = 1;
+    const COLUMN_TYPE_STRING   = 2;
+    const COLUMN_TYPE_INTEGER  = 4;
+    const COLUMN_TYPE_FLOAT    = 8;
 
     /**
      * Column flag to enable sorting on it.
      */
-    const COLUMN_FLAG_SORTABLE = 0x01;
+    const COLUMN_FLAG_SORTABLE = 1;
 
     /**
      * Column flag to hide a column.
      */
-    const COLUMN_FLAG_HIDDEN   = 0x02;
+    const COLUMN_FLAG_HIDDEN = 2;
 
     /**
      * Indicates left alignment regardless of column type
      */
-    const COLUMN_FLAG_ALIGN_LEFT = 0x04;
+    const COLUMN_FLAG_ALIGN_LEFT = 4;
 
     /**
      * Indicates right alignment regardless of column type
      */
-    const COLUMN_FLAG_ALIGN_RIGHT = 0x08;
+    const COLUMN_FLAG_ALIGN_RIGHT = 8;
+
+    /**
+     * Indicates even alignment regardless of column type
+     */
+    const COLUMN_FLAG_ALIGN_EVEN = 16;
 
     /**
      * Data columns
