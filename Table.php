@@ -242,12 +242,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
         $column_list    = LINE_VERTICAL;
 
         // Exclude columns that aren't visible
-        $columns = array_filter(
-            $this->columns,
-            function ($v) {
-                return $v->isVisible();
-            }
-        );
+        $columns = $this->getVisibleColumns();
 
         // Generate the header
         end($columns);
@@ -266,7 +261,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
 
         $header         .= (empty($this->table_title) ? LINE_TOP_RIGHT : LINE_RIGHT_T) . PHP_EOL;
         $footer         .= LINE_BOTTOM_RIGHT . PHP_EOL;
-        $column_divider .= LINE_VERTICAL . PHP_EOL;
+        $column_divider .= LINE_RIGHT_T . PHP_EOL;
         $column_list    .= LINE_VERTICAL . PHP_EOL;
 
         $table = "";
@@ -290,7 +285,7 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
             $table .= LINE_VERTICAL;
 
             foreach ($columns as $id => $col) {
-                $data      = $row[$id];
+                $data      = isset($row[$id]) ? $row[$id] : '';
                 $col_width = max($this->column_widths[$id], $this->data_widths[$id]);
 
                 // Is this a DataGrid value with raw/display values?
@@ -690,21 +685,17 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
     }
 
     /**
-     * Calculate the width of the
+     * Calculate the width of the visible columns by the length of their header
+     * text.
      *
      * @return DataGrid $this
      */
     protected function _calculateColumnWidths()
     {
-        $this->terminal_width = exec("tput cols");
+        $columns = $this->getVisibleColumns();
 
-        // Calculate widths of the column names themselves
-        $this->column_widths = array_map(
-            function (DataGrid_Column $v) {
-                return $v->isVisible() ? $this->_strLen($v) : 0;
-            },
-            $this->columns
-        );
+        $this->terminal_width = exec("tput cols");
+        $this->column_widths  = array_map(['DataGrid_Tools', 'strLen'], $columns);
 
         return $this;
     }
@@ -714,29 +705,34 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
      * might be too wide, to make them fit in the terminal viewport.
      *
      * @param  int $data_row_start Only process data starting with this row.
-     * @return bool                    FALSE if table would not fit in the viewport, TRUE if it does.
+     * @return bool                FALSE if table would not fit in the viewport, TRUE if it would.
      */
     protected function _calculateDataWidths(int $data_row_start = 0): bool
     {
-        $visiblecolumns = $this->getVisibleColumns();
+        $columns = $this->getVisibleColumns();
 
         // Reset data widths by zeroing them.
         $this->data_widths = array_combine(
-            array_keys($visiblecolumns),
-            array_fill(0, count($visiblecolumns), 0)
+            array_keys($columns),
+            array_fill(0, count($columns), 0)
         );
 
         for ($i = $data_row_start; $i < count($this->data); ++$i) {
-            foreach ($visiblecolumns as $id => $col) {
+            foreach ($columns as $id => $col) {
+                // Skip any columns not present in the current row
+                if (!isset($this->data[$i][$id])) {
+                    continue;
+                }
+
                 $this->data_widths[$id] = max(
-                    $this->_strLen($this->data[$i][$id]),
+                    DataGrid_Tools::strLen($this->data[$i][$id]),
                     $this->data_widths[$id]
                 );
             }
         }
 
         $table_width = $this->_calculateTableWidth();
-        $title_width = $this->_strLen($this->table_title) + 4;
+        $title_width = DataGrid_Tools::strLen($this->table_title) + 4;
 
         $this->terminal_width = exec("tput cols");
 
@@ -761,13 +757,13 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
     protected function _adjustColumnWidths()
     {
         $visiblecolumns = $this->getVisibleColumns();
-        $table_width     = $this->_calculateTableWidth();
+        $table_width    = $this->_calculateTableWidth();
 
         // Array of column widths of string columns
         $stringcolumn_widths = array_filter(
             array_map(
                 function ($v) {
-                    return $v instanceof DataGrid_Column_String ? $this->_strLen($v) + 4 : 0;
+                    return $v instanceof DataGrid_Column_String ? DataGrid_Tools::strLen($v) + 4 : 0;
                 },
                 $visiblecolumns
             )
@@ -804,8 +800,8 @@ class DataGrid_Table implements Countable, Iterator, ArrayAccess
             // Adjust column width, apparent table width, and the amount
             // we need to adjust by for the next iteration, if any.
             $this->data_widths[$id] -= $adjusted_by;
-            $table_width             -= $adjusted_by;
-            $adjust_by               -= $adjusted_by;
+            $table_width            -= $adjusted_by;
+            $adjust_by              -= $adjusted_by;
 
             // If the table would fit now, break out and call it a day.
             if ($table_width <= $target_width) {
