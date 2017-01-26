@@ -63,7 +63,7 @@ define("LINE_ARROW_UP",     "\u{25B2}");
 /**
  * Main DataGrid class
  */
-class DataGrid_Table implements Countable
+class DataGrid_Table implements Countable, Iterator, ArrayAccess
 {
     /**
      * Grid flag indicating we should hide column headers
@@ -166,8 +166,54 @@ class DataGrid_Table implements Countable
      */
     protected $table_title = "";
 
-    public function __construct()
-    {
+    /**
+     * Iterable current position
+     */
+    protected $it_pos = 0;
+
+    /* Iterable methods */
+    function rewind() {
+        $this->it_pos = 0;
+    }
+
+    function current() {
+        return $this->data[$this->it_pos];
+    }
+
+    function key() {
+        return $this->it_pos;
+    }
+
+    function next() {
+        ++$this->it_pos;
+    }
+
+    function valid() {
+        return isset($this->data[$this->it_pos]);
+    }
+
+    /* ArrayAccess methods */
+    public function offsetSet($offset, $value) {
+        if (is_null($offset)) {
+            $this->data[] = $value;
+            $this->data_orig[] = $value;
+        } else {
+            $this->data[$offset] = $value;
+            $this->data_orig[$offset] = $value;
+        }
+    }
+
+    public function offsetExists($offset) {
+        return isset($this->data[$offset]);
+    }
+
+    public function offsetUnset($offset) {
+        unset($this->data[$offset]);
+        unset($this->data_orig[$offset]);
+    }
+
+    public function offsetGet($offset) {
+        return isset($this->data[$offset]) ? $this->data[$offset] : null;
     }
 
     /**

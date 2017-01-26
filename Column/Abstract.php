@@ -77,7 +77,9 @@ abstract class DataGrid_Column
     {
         if ($toggle) {
             $this->_flags = $this->_flags | $flag;
-        } else {
+        }
+        else
+        {
             $this->_flags = $this->_flags & (~ $flag);
         }
     }
